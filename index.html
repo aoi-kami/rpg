@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドラゴンの まおう</title>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #000;
+  font-family: 'DotGothic16', monospace;
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#game-container { width: 520px; max-width: 100vw; }
+
+.retro-box {
+  border: 3px double #fff;
+  background: #000;
+  padding: 12px;
+  position: relative;
+}
+.retro-box::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(255,255,255,0.2);
+  pointer-events: none;
+}
+
+.btn-retro {
+  background: #000; color: #fff;
+  border: 2px solid #fff;
+  font-family: 'DotGothic16', monospace;
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s;
+}
+.btn-retro:hover, .btn-retro.selected { background: #fff; color: #000; }
+.btn-retro:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-retro:active:not(:disabled) { transform: translateY(1px); }
+
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* title */
+#title-screen { text-align: center; padding: 30px 20px; }
+.title-text {
+  font-size: 22px; letter-spacing: 4px; margin-bottom: 6px;
+  color: #ffe066;
+  text-shadow: 0 0 10px #ffe066, 0 0 22px #ff9900;
+}
+.subtitle-text { font-size: 11px; color: #888; letter-spacing: 2px; margin-bottom: 20px; }
+
+/* job select */
+#job-screen { padding: 14px; }
+.job-card {
+  border: 2px solid #555; background: #000;
+  padding: 9px 12px; cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+  margin-bottom: 6px;
+}
+.job-card:hover, .job-card.active { border-color: #ffe066; background: #111; }
+.job-card .job-name { font-size: 14px; color: #ffe066; margin-bottom: 2px; }
+.job-card .job-desc { font-size: 11px; color: #aaa; line-height: 1.5; }
+.job-card .job-stats { font-size: 11px; color: #7dd3fc; margin-top: 3px; }
+
+/* bars */
+.bar-track { background: #333; height: 7px; overflow: hidden; flex: 1; }
+.bar-fill { height: 100%; transition: width 0.3s; }
+.hp-fill  { background: #4ade80; }
+.mp-fill  { background: #60a5fa; }
+.hp-fill.low { background: #f87171; }
+.dead-fill { background: #555; }
+
+/* stage badge */
+.stage-badge {
+  display: inline-block;
+  border: 2px solid #ffe066; color: #ffe066;
+  font-size: 12px; padding: 2px 8px; letter-spacing: 2px;
+}
+.stage-badge.lastboss { border-color: #f87171; color: #f87171; }
+
+/* explore bar */
+.explore-bar-track { background: #333; height: 10px; border: 1px solid #555; overflow: hidden; }
+.explore-bar-fill  { height: 100%; transition: width 0.5s; }
+
+/* battle log */
+#battle-log {
+  height: 88px; overflow-y: auto;
+  font-size: 12px; line-height: 1.9;
+  scrollbar-width: thin; scrollbar-color: #555 #000;
+}
+#battle-log p { padding: 0 2px; }
+#battle-log p:last-child { color: #ffe066; }
+
+.monster-art {
+  height: 84px; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; line-height: 1.3; white-space: pre; letter-spacing: 1px;
+}
+
+.cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.spell-list { display: flex; flex-direction: column; gap: 3px; }
+
+/* shop */
+#shop-screen { padding: 14px; }
+.shop-item {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid #444; padding: 8px 10px;
+  margin-bottom: 5px; background: #000;
+}
+.shop-item.owned  { border-color: #4ade80; }
+.shop-item.equipped { border-color: #ffe066; background: #111; }
+.shop-item-name { flex: 1; font-size: 12px; }
+.shop-item-desc { font-size: 10px; color: #aaa; }
+.shop-item-price { font-size: 11px; color: #ffe066; min-width: 52px; text-align: right; }
+
+#ending-screen  { text-align: center; padding: 26px 20px; }
+#gameover-screen { text-align: center; padding: 32px 20px; }
+.end-title { font-size: 19px; color: #ffe066; margin-bottom: 10px; text-shadow: 0 0 8px #ff9900; }
+.go-title  { font-size: 22px; color: #f87171; text-shadow: 0 0 10px #ef4444; margin-bottom: 14px; }
+
+@keyframes boss-glow {
+  0%,100% { text-shadow: 0 0 4px #f87171; }
+  50%     { text-shadow: 0 0 16px #f87171, 0 0 32px #ff4400; }
+}
+.boss-name { animation: boss-glow 1.2s ease-in-out infinite; color: #f87171; }
+</style>
+</head>
+<body>
+<div id="game-container">
+
+<!-- ══ TITLE ══ -->
+<div id="title-screen" class="screen active retro-box">
+  <div class="title-text">ドラゴンの　まおう</div>
+  <div class="subtitle-text">～ Legends of the Dragon King ～</div>
+  <div style="font-size:40px;margin-bottom:14px;">🐉</div>
+  <div id="title-cycle-info" style="display:none;font-size:12px;color:#f97316;margin-bottom:10px;border:1px solid #f97316;padding:4px 10px;"></div>
+  <div id="title-gold-info" style="display:none;font-size:12px;color:#ffe066;margin-bottom:14px;"></div>
+  <div style="font-size:12px;color:#888;margin-bottom:20px;line-height:2.2;">
+    まおうに　うばわれた　へいわを　とりもどすため<br>
+    ゆうしゃは　なかまと　ともに　たびに　でた。
+  </div>
+  <button class="btn-retro" id="btn-start" style="font-size:15px;padding:11px 30px;">
+    ▶　ぼうけんを　はじめる
+  </button>
+</div>
+
+<!-- ══ JOB SELECT ══ -->
+<div id="job-screen" class="screen retro-box">
+  <div style="font-size:11px;color:#888;letter-spacing:2px;margin-bottom:8px;">── しょくぎょう　えらび ──</div>
+  <div style="font-size:12px;color:#ccc;margin-bottom:10px;line-height:1.8;">
+    あなたの　しょくぎょうを　えらんで　ください。<br>
+    <span style="font-size:11px;color:#888;">※なかま2人は　じどうで　けっていします。</span>
+  </div>
+  <div id="job-list"></div>
+  <button class="btn-retro" id="btn-job-decide" style="width:100%;margin-top:8px;" disabled>
+    ▶　これで　きめる
+  </button>
+</div>
+
+<!-- ══ EXPLORE ══ -->
+<div id="explore-screen" class="screen retro-box">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+    <div id="stage-badge" class="stage-badge">1-1</div>
+    <div id="stage-name" style="font-size:12px;color:#ccc;"></div>
+    <div style="margin-left:auto;font-size:11px;color:#ffe066;">💰<span id="explore-gold">0</span>G</div>
+  </div>
+  <div style="margin-bottom:7px;">
+    <div style="font-size:11px;color:#aaa;margin-bottom:2px;">
+      たんさくど：<span id="explore-pct">0</span>%
+      <span id="boss-hint" style="margin-left:8px;font-size:10px;color:#f97316;"></span>
+    </div>
+    <div class="explore-bar-track">
+      <div class="explore-bar-fill" id="explore-bar" style="width:0%"></div>
+    </div>
+  </div>
+  <div class="retro-box" style="margin-bottom:7px;padding:8px;">
+    <div id="explore-log" style="height:52px;overflow-y:auto;font-size:12px;line-height:1.9;scrollbar-width:thin;scrollbar-color:#555 #000;">
+      <p>まえを　みると　みちが　つづいている。</p>
+    </div>
+  </div>
+  <div class="retro-box" style="margin-bottom:7px;padding:8px;" id="explore-party-panel"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">
+    <button class="btn-retro" id="btn-advance">▶　すすむ</button>
+    <button class="btn-retro" id="btn-camp">⛺　やどや</button>
+    <button class="btn-retro" id="btn-shop">🛒　ショップ</button>
+  </div>
+</div>
+
+<!-- ══ CAMP ══ -->
+<div id="camp-screen" class="screen retro-box">
+  <div style="font-size:11px;color:#888;letter-spacing:2px;margin-bottom:8px;">── やどや ──</div>
+  <div id="camp-log" style="font-size:13px;line-height:2;min-height:44px;color:#ffe066;margin-bottom:10px;">
+    こちらが　やどやです。<br>いっぱい　やすんで　いってね。
+  </div>
+  <div style="font-size:12px;margin-bottom:12px;">
+    ・パーティ　ぜんいんの　HPとMPが　かいふく：<span style="color:#ffe066;">15G</span><br>
+    ・いまの　ゴールド：<span id="camp-gold">0</span>G
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+    <button class="btn-retro" id="btn-rest">💤　やすむ (15G)</button>
+    <button class="btn-retro" id="btn-camp-back">◀　もどる</button>
+  </div>
+</div>
+
+<!-- ══ SHOP ══ -->
+<div id="shop-screen" class="screen retro-box">
+  <div style="font-size:11px;color:#888;letter-spacing:2px;margin-bottom:8px;">── ショップ ──</div>
+  <div style="font-size:12px;color:#ffe066;margin-bottom:10px;">
+    💰 もちゴールド：<span id="shop-gold-display">0</span>G
+    （ひきつぎゴールド：<span id="shop-persist-display">0</span>G）
+  </div>
+  <div style="font-size:11px;color:#aaa;margin-bottom:6px;">── ぶき ──</div>
+  <div id="shop-weapon-list"></div>
+  <div style="font-size:11px;color:#c4b5fd;margin:8px 0 6px;">── まほうの ぶき（🔮 まほうつかい専用） ──</div>
+  <div id="shop-mage-weapon-list"></div>
+  <div style="font-size:11px;color:#aaa;margin:8px 0 6px;">── ぼうぐ ──</div>
+  <div id="shop-armor-list"></div>
+  <button class="btn-retro" id="btn-shop-back" style="width:100%;margin-top:10px;">◀　もどる</button>
+</div>
+
+<!-- ══ BATTLE ══ -->
+<div id="battle-screen" class="screen retro-box">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+    <div style="font-size:11px;color:#888;letter-spacing:2px;">── せんとう ──</div>
+    <div id="battle-stage-label" style="font-size:10px;color:#666;"></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-bottom:5px;align-items:flex-start;">
+    <div>
+      <div class="monster-art" id="monster-art"></div>
+      <div style="text-align:center;font-size:11px;margin-top:1px;" id="monster-name"></div>
+    </div>
+    <div style="flex:1;padding-top:4px;">
+      <div style="font-size:10px;color:#888;">てきのHP</div>
+      <div style="display:flex;gap:4px;align-items:center;margin-top:2px;">
+        <div class="bar-track" style="flex:1;">
+          <div class="bar-fill" id="enemy-hp-bar" style="width:100%;background:#f87171;"></div>
+        </div>
+        <span id="enemy-hp-text" style="font-size:10px;min-width:60px;text-align:right;"></span>
+      </div>
+    </div>
+  </div>
+  <div class="retro-box" style="margin-bottom:5px;padding:8px;">
+    <div id="battle-log"></div>
+  </div>
+  <div class="retro-box" style="margin-bottom:5px;padding:8px;" id="battle-party-panel"></div>
+  <div id="cmd-main" class="retro-box" style="padding:8px;">
+    <div style="font-size:10px;color:#888;margin-bottom:4px;">コマンド</div>
+    <div class="cmd-grid">
+      <button class="btn-retro" id="btn-fight">⚔　たたかう</button>
+      <button class="btn-retro" id="btn-spell">✨　じゅもん</button>
+      <button class="btn-retro" id="btn-item">🎒　どうぐ</button>
+      <button class="btn-retro" id="btn-run">🏃　にげる</button>
+    </div>
+  </div>
+  <div id="cmd-spell" class="retro-box" style="padding:8px;display:none;">
+    <div style="font-size:10px;color:#888;margin-bottom:4px;">じゅもん（MP:<span id="spell-mp">0</span>）</div>
+    <div class="spell-list" id="spell-list"></div>
+    <button class="btn-retro" style="margin-top:5px;width:100%;" id="btn-spell-back">◀　もどる</button>
+  </div>
+  <div id="cmd-item" class="retro-box" style="padding:8px;display:none;">
+    <div style="font-size:10px;color:#888;margin-bottom:4px;">どうぐ</div>
+    <div id="item-list"></div>
+    <button class="btn-retro" style="margin-top:5px;width:100%;" id="btn-item-back">◀　もどる</button>
+  </div>
+  <!-- ターゲット選択パネル -->
+  <div id="cmd-target" class="retro-box" style="padding:8px;display:none;">
+    <div style="font-size:10px;color:#888;margin-bottom:4px;">だれに　つかう？</div>
+    <div id="target-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+    <button class="btn-retro" style="margin-top:5px;width:100%;" id="btn-target-back">◀　もどる</button>
+  </div>
+</div>
+
+<!-- ══ GAMEOVER ══ -->
+<div id="gameover-screen" class="screen retro-box">
+  <div class="go-title">ゲームオーバー</div>
+  <div id="gameover-stage" style="font-size:12px;color:#888;margin-bottom:10px;"></div>
+  <div style="font-size:13px;color:#aaa;margin-bottom:8px;line-height:2.2;">
+    パーティは　ぜんめつした…
+  </div>
+  <div id="gameover-gold" style="font-size:12px;color:#ffe066;margin-bottom:20px;"></div>
+  <button class="btn-retro" id="btn-retry">▶　もういちど</button>
+</div>
+
+<!-- ══ ENDING ══ -->
+<div id="ending-screen" class="screen retro-box">
+  <div class="end-title">おめでとう！</div>
+  <div style="font-size:28px;margin-bottom:12px;">🏆</div>
+  <div id="end-msg" style="font-size:12px;color:#fff;line-height:2.2;margin-bottom:16px;"></div>
+  <button class="btn-retro" id="btn-end-retry" style="width:100%;">▶　もういちど　あそぶ</button>
+</div>
+
+</div><!-- #game-container -->
+
+<!-- ══════════════════════════════════════
+     WEB AUDIO
+══════════════════════════════════════ -->
+<script>
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function getACtx(){ if(!audioCtx) audioCtx=new AudioCtx(); return audioCtx; }
+function playSfx(type){
+  try{
+    const c=getACtx();
+    if(type==='decide')    sfxTone(c,880,'square',0.08,0.28);
+    else if(type==='attack')    sfxNoise(c,0.15,0.5);
+    else if(type==='fire')      sfxFire(c);
+    else if(type==='heal')      sfxHeal(c);
+    else if(type==='damage')    sfxNoise(c,0.18,0.6);
+    else if(type==='levelup')   sfxLevelup(c);
+    else if(type==='dead')      sfxDead(c);
+    else if(type==='escape')    sfxEscape(c);
+    else if(type==='ally_atk')  sfxTone(c,660,'square',0.1,0.22);
+    else if(type==='ally_heal') sfxHeal(c,0.18);
+    else if(type==='boss_entry') sfxBossEntry(c);
+    else if(type==='stageclear') sfxStageClear(c);
+    else if(type==='debuff')    sfxDebuff(c);
+    else if(type==='buy')       sfxBuy(c);
+  }catch(e){}
+}
+function sfxTone(c,freq,type,dur,vol){const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type=type;o.frequency.value=freq;g.gain.setValueAtTime(vol,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+dur);o.start();o.stop(c.currentTime+dur);}
+function sfxNoise(c,dur,vol){const buf=c.createBuffer(1,c.sampleRate*dur,c.sampleRate);const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(1-i/d.length)*vol;const src=c.createBufferSource();src.buffer=buf;const g=c.createGain();src.connect(g);g.connect(c.destination);g.gain.setValueAtTime(vol,c.currentTime);src.start();}
+function sfxFire(c){const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sawtooth';o.frequency.setValueAtTime(280,c.currentTime);o.frequency.exponentialRampToValueAtTime(1400,c.currentTime+0.32);g.gain.setValueAtTime(0.28,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.36);o.start();o.stop(c.currentTime+0.36);}
+function sfxHeal(c,vol=0.22){[523,659,784,1047].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sine';o.frequency.value=f;const t=c.currentTime+i*0.08;g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.12);o.start(t);o.stop(t+0.12);});}
+function sfxLevelup(c){[[523,0],[659,0.1],[784,0.2],[1047,0.3],[880,0.5],[1047,0.62],[1175,0.76]].forEach(([f,d])=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='square';o.frequency.value=f;const t=c.currentTime+d;g.gain.setValueAtTime(0.22,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.17);o.start(t);o.stop(t+0.17);});}
+function sfxDead(c){const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='square';o.frequency.setValueAtTime(380,c.currentTime);o.frequency.exponentialRampToValueAtTime(70,c.currentTime+0.9);g.gain.setValueAtTime(0.28,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.95);o.start();o.stop(c.currentTime+0.95);}
+function sfxEscape(c){const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='square';o.frequency.setValueAtTime(1100,c.currentTime);o.frequency.exponentialRampToValueAtTime(280,c.currentTime+0.26);g.gain.setValueAtTime(0.22,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.28);o.start();o.stop(c.currentTime+0.28);}
+function sfxBossEntry(c){[0,0.3,0.6].forEach(d=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sawtooth';o.frequency.setValueAtTime(80,c.currentTime+d);o.frequency.exponentialRampToValueAtTime(40,c.currentTime+d+0.25);g.gain.setValueAtTime(0.4,c.currentTime+d);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d+0.28);o.start(c.currentTime+d);o.stop(c.currentTime+d+0.28);});}
+function sfxStageClear(c){[[784,0],[880,0.12],[1047,0.24],[1175,0.36],[1318,0.52],[1047,0.66],[1318,0.82]].forEach(([f,d])=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='square';o.frequency.value=f;const t=c.currentTime+d;g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.2);o.start(t);o.stop(t+0.2);});}
+function sfxDebuff(c){const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='sawtooth';o.frequency.setValueAtTime(1200,c.currentTime);o.frequency.exponentialRampToValueAtTime(180,c.currentTime+0.45);g.gain.setValueAtTime(0.28,c.currentTime);g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+0.48);o.start();o.stop(c.currentTime+0.48);}
+function sfxBuy(c){[440,550,660].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.type='square';o.frequency.value=f;const t=c.currentTime+i*0.09;g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.12);o.start(t);o.stop(t+0.12);});}
+</script>
+
+<!-- ══════════════════════════════════════
+     GAME DATA
+══════════════════════════════════════ -->
+<script>
+// ── 職業 (HP初期値=100) ───────────────────
+const JOBS = {
+  hero:    { id:'hero',    name:'ゆうしゃ',     icon:'⚔',
+    desc:'こうげきとまほうの バランスがよい。\nオールマイティな しょくぎょう。',
+    hp:100, mp:120, atk:60,
+    hpGain:[8,14], mpGain:[6,10], atkGain:[5,8],
+    spells:['メラ','ホイミ','弱体ビーム'], learnAt:{5:'メラゾーマ'} },
+  warrior: { id:'warrior', name:'ぶとうか',     icon:'👊',
+    desc:'こうげきりょくが たかく\nHPもじょうぶ。弱体ビームも つかえる。',
+    hp:100, mp:40,  atk:80,
+    hpGain:[12,18], mpGain:[1,3],  atkGain:[8,12],
+    spells:['弱体ビーム'], learnAt:{} },
+  mage:    { id:'mage',    name:'まほうつかい', icon:'🔮',
+    desc:'レベルアップで こうげきまほうが どんどん\nふえる まほうの スペシャリスト。',
+    hp:100, mp:200, atk:30,
+    hpGain:[6,10], mpGain:[12,18], atkGain:[2,3],
+    // 初期はメラと弱体ビームのみ。レベルアップごとに攻撃魔法を次々習得
+    spells:['メラ','弱体ビーム'],
+    learnAt:{
+      2:'メラミ',
+      3:'ギラ',
+      4:'メラゾーマ',
+      5:'ギラーゴ',
+      6:'ベホイミ',
+      7:'マヒャド',
+      8:'イオナズン',
+      9:'メガンテもどき',
+    } },
+  priest:  { id:'priest',  name:'そうりょ',     icon:'✝',
+    desc:'かいふくまほうの スペシャリスト。\nなかまを しっかり まもれる しょくぎょう。',
+    hp:100, mp:160, atk:45,
+    hpGain:[8,12], mpGain:[10,15], atkGain:[3,5],
+    spells:['ホイミ','ベホイミ','弱体ビーム'],
+    learnAt:{
+      2:'スクルト',
+      3:'ベホマ',
+      4:'ザオリク',
+      5:'ベホマズン',
+      6:'マホカンタ',
+    } },
+};
+
+// ── 呪文 (100スケール) ────────────────────
+const SPELL_DEF = {
+  // ── 攻撃魔法（まほうつかい中心） ──
+  'メラ':        {mp:3,  type:'fire', dmg:[10,18],   heal:0},  // 初期
+  'メラミ':      {mp:6,  type:'fire', dmg:[22,32],   heal:0},  // LV2
+  'ギラ':        {mp:8,  type:'fire', dmg:[35,50],   heal:0},  // LV3
+  'メラゾーマ':  {mp:12, type:'fire', dmg:[55,75],   heal:0},  // LV4（ゆうしゃLV5でも習得）
+  'ギラーゴ':    {mp:14, type:'fire', dmg:[75,100],  heal:0},  // LV5
+  'マヒャド':    {mp:16, type:'fire', dmg:[95,125],  heal:0},  // LV7
+  'イオナズン':  {mp:20, type:'fire', dmg:[130,170], heal:0},  // LV8
+  'メガンテもどき':{mp:35,type:'fire',dmg:[250,350], heal:0},  // LV9（超強力・高コスト）
+  // ── 回復魔法 ──
+  'ホイミ':      {mp:4,  type:'heal',   dmg:0, heal:[20,35]},
+  'ベホイミ':    {mp:8,  type:'heal',   dmg:0, heal:[50,70]},   // そうりょ初期 / まほうつかいLV6
+  'ベホマ':      {mp:14, type:'heal',   dmg:0, heal:[999,999]}, // そうりょLV3
+  'ベホマズン':  {mp:20, type:'healall',dmg:0, heal:[999,999]}, // そうりょLV5（全体全回復）
+  'ザオリク':    {mp:18, type:'revive', dmg:0, heal:0},         // そうりょLV4（戦闘不能1人を復活・HP半分）
+  // ── 補助魔法 ──
+  '弱体ビーム':  {mp:10, type:'debuff', dmg:0, heal:0},
+  'スクルト':    {mp:8,  type:'guard',  dmg:0, heal:0},         // そうりょLV2（1ターン敵ATK -50%）
+  'マホカンタ':  {mp:12, type:'guard2', dmg:0, heal:0},         // そうりょLV6（1ターン魔法ダメージ無効化）
+};
+
+// ── EXP テーブル ──────────────────────────
+const EXP_TABLE = [0,0, 30,80,160,280,450,680,1000,1400,9999];
+
+// ── 仲間プール ────────────────────────────
+const ALLY_POOL = [
+  {name:'ライラ',   jobId:'priest'},
+  {name:'ガリン',   jobId:'warrior'},
+  {name:'ミレイユ', jobId:'mage'},
+];
+
+// ── モンスター ────────────────────────────
+const MON = {
+  guardian: {name:'まおうの番人', art:' ☗(X X)☗\n  ｜　｜\n  /　\\', color:'#f43f5e', hp:300, atk:35, exp:160, gold:100},
+  lastboss: {name:'りゅうおう', isBoss:true,
+    art:'╔══════════╗\n║ ◈   ◈ ║\n║  りゅう  ║\n║  おう   ║\n╚══════════╝',
+    color:'#f87171', hp:1500, atk:52, exp:9999, gold:500},
+};
+
+// ── ステージ ──────────────────────────────
+const STAGES = [
+  { label:'1-1', name:'まおうの　間', barColor:'#f87171',
+    enemies:[MON.guardian], boss:MON.lastboss,
+    bossMsg:'まおう　りゅうおう：「わははは！ ここまで よくぞ きた！」' },
+];
+
+// ══════════════════════════════════════════
+//  SHOP DEFINITIONS
+// ══════════════════════════════════════════
+const SHOP_ITEMS = {
+  weapons: [
+    { id:'w1', name:'どうのけん',    icon:'🗡',  price:80,  atkBonus:20,  hpBonus:0, mpwBonus:0,
+      desc:'ATK +20。はじめての ぶき。', forJob:'all' },
+    { id:'w2', name:'てつのけん',    icon:'⚔',  price:200, atkBonus:50,  hpBonus:0, mpwBonus:0,
+      desc:'ATK +50。しっかりとした つるぎ。', forJob:'all' },
+    { id:'w3', name:'ドラゴンソード',icon:'🔱', price:500, atkBonus:120, hpBonus:0, mpwBonus:0,
+      desc:'ATK +120。まおうすら おそれる まけん。', forJob:'all' },
+  ],
+  // まほうつかい専用の杖（ATK上昇はなく、魔法ダメージ倍率が上がる）
+  mageWeapons: [
+    { id:'mw1', name:'きのつえ',    icon:'🪄',  price:80,  atkBonus:0, hpBonus:0, mpwBonus:0.3,
+      desc:'魔法ダメージ +30%。まほうつかい の ための つえ。', forJob:'mage' },
+    { id:'mw2', name:'まほうのつえ', icon:'🔮', price:200, atkBonus:0, hpBonus:0, mpwBonus:0.7,
+      desc:'魔法ダメージ +70%。じゅもんが さらに つよくなる。', forJob:'mage' },
+    { id:'mw3', name:'ドラゴンロッド',icon:'🐉', price:500, atkBonus:0, hpBonus:0, mpwBonus:1.5,
+      desc:'魔法ダメージ +150%。まおうの ちからを きわめた つえ。', forJob:'mage' },
+  ],
+  armors: [
+    { id:'a1', name:'かわのよろい',   icon:'🛡',  price:80,  atkBonus:0, hpBonus:80,  mpwBonus:0,
+      desc:'HP +80。かわせいの よろい。', forJob:'all' },
+    { id:'a2', name:'くさりかたびら', icon:'🔗',  price:200, atkBonus:0, hpBonus:200, mpwBonus:0,
+      desc:'HP +200。てつせいの よろい。', forJob:'all' },
+    { id:'a3', name:'まおうのよろい', icon:'💎',  price:500, atkBonus:0, hpBonus:500, mpwBonus:0,
+      desc:'HP +500。まほうの てつごうきん よろい。', forJob:'all' },
+  ],
+};
+</script>
+
+<!-- ══════════════════════════════════════
+     STATE & CORE
+══════════════════════════════════════ -->
+<script>
+// ── グローバル永続変数 ────────────────────
+let persistentGold    = 0;
+let inventory         = {};
+let equippedWeapon    = null; // 剣系（全員ATKボーナス）
+let equippedMageWeapon= null; // 杖系（まほうつかいのみmpwBonus）
+let equippedArmor     = null; // 防具（全員HPボーナス）
+let clearCount        = 0;
+
+let state = {};
+let busy  = false;
+
+// ── ユーティリティ ────────────────────────
+function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ── 装備ボーナス取得 ──────────────────────
+// atkBonus  : 剣装備時の全員ATK上昇値
+// hpBonus   : 防具装備時の全員HP上昇値
+// mpwBonus  : 杖装備時のまほうつかいのみの魔法ダメージ倍率(0.0〜)
+function getEquipBonus(){
+  let atkBonus=0, hpBonus=0, mpwBonus=0;
+  if(equippedWeapon){
+    const w=SHOP_ITEMS.weapons.find(x=>x.id===equippedWeapon);
+    if(w) atkBonus+=w.atkBonus;
+  }
+  if(equippedMageWeapon){
+    const mw=SHOP_ITEMS.mageWeapons.find(x=>x.id===equippedMageWeapon);
+    if(mw) mpwBonus+=mw.mpwBonus;
+  }
+  if(equippedArmor){
+    const a=SHOP_ITEMS.armors.find(x=>x.id===equippedArmor);
+    if(a) hpBonus+=a.hpBonus;
+  }
+  return {atkBonus, hpBonus, mpwBonus};
+}
+
+// ── 魔法ダメージ倍率取得（キャラ用） ─────
+// まほうつかいのときだけ杖ボーナスを返す
+function getMpwMult(chr){
+  if(chr.jobId!=='mage') return 1.0;
+  const {mpwBonus}=getEquipBonus();
+  return 1.0 + mpwBonus;
+}
+
+// ── キャラクター生成 ──────────────────────
+// 武器ATKボーナス・防具HPボーナスは全員に適用
+function makeChar(name, jobId){
+  const j=JOBS[jobId];
+  const {atkBonus,hpBonus}=getEquipBonus();
+  const baseHp  = j.hp  + hpBonus;   // 全員に防具ボーナス
+  const baseAtk = j.atk + atkBonus;  // 全員に武器ボーナス
+  return { name, jobId, lv:1, exp:0,
+    hp:baseHp, maxHp:baseHp, mp:j.mp, maxMp:j.mp, atk:baseAtk,
+    _baseHp:baseHp, _baseAtk:baseAtk, // 装備再計算の基準値
+    spells:[...j.spells], alive:true };
+}
+
+// ── ステート初期化 ────────────────────────
+function initState(playerJobId){
+  const player=makeChar('ゆうしゃ',playerJobId);
+  const allies=[];
+  for(const ap of ALLY_POOL){
+    if(allies.length>=2) break;
+    if(ap.jobId!==playerJobId) allies.push(makeChar(ap.name,ap.jobId));
+  }
+  state={
+    scene:'explore', player, allies,
+    gold: persistentGold,
+    herb:3, currentStage:0, explore:0, enemy:null,
+  };
+
+  // 周回ボーナス: N周目は全員 LV(N+1) からスタート（2周目→LV2、3周目→LV3…）
+  if(clearCount>0){
+    [state.player,...state.allies].forEach(chr=>applyStartLevel(chr, clearCount+1));
+  }
+}
+
+// 周回開始レベルを直接適用（EXPは使わずステータスだけ上げる）
+function applyStartLevel(chr, targetLv){
+  const j=JOBS[chr.jobId];
+  for(let i=1;i<targetLv;i++){
+    chr.lv++;
+    chr.maxHp+=rand(j.hpGain[0],j.hpGain[1]);
+    chr.maxMp+=rand(j.mpGain[0],j.mpGain[1]);
+    chr.atk  +=rand(j.atkGain[0],j.atkGain[1]);
+    // 呪文習得チェック
+    const learned=j.learnAt[chr.lv];
+    if(learned&&!chr.spells.includes(learned)) chr.spells.push(learned);
+  }
+  // HPとMPを最大値に設定
+  chr.hp=chr.maxHp;
+  chr.mp=chr.maxMp;
+}
+
+// ── 画面切替 ──────────────────────────────
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id+'-screen').classList.add('active');
+  state.scene=id;
+}
+
+// ── ログ ──────────────────────────────────
+function appendLog(elId,msg,color){
+  const el=document.getElementById(elId);
+  const p=document.createElement('p');
+  p.textContent=msg;
+  if(color) p.style.color=color;
+  el.appendChild(p);
+  while(el.children.length>60) el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+function clearLog(elId){ document.getElementById(elId).innerHTML=''; }
+
+// ── パーティパネル描画 ────────────────────
+function renderPartyPanel(elId){
+  const el=document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML='';
+  const members=[state.player,...state.allies];
+  members.forEach(m=>{
+    const job=JOBS[m.jobId];
+    const hpPct=m.maxHp>0?(m.hp/m.maxHp*100):0;
+    const mpPct=m.maxMp>0?(m.mp/m.maxMp*100):0;
+    const dead=!m.alive;
+    const wrap=document.createElement('div');
+    wrap.style.cssText='margin-bottom:5px;padding-bottom:5px;border-bottom:1px solid #222;';
+    wrap.innerHTML=`
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:2px;">
+        <span style="font-size:13px;">${job.icon}</span>
+        <span style="font-size:11px;width:68px;white-space:nowrap;overflow:hidden;
+          color:${dead?'#666':'#fff'};">${m.name}${dead?'（不能）':''}</span>
+        <span style="font-size:10px;color:#aaa;">LV${m.lv}</span>
+        <span style="font-size:10px;flex:1;text-align:right;
+          color:${dead?'#666':(hpPct<30?'#f87171':'#4ade80')};">
+          HP ${dead?'---':m.hp}/${m.maxHp}</span>
+        <span style="font-size:10px;color:#60a5fa;min-width:56px;text-align:right;">
+          MP ${dead?'---':m.mp}/${m.maxMp}</span>
+      </div>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <span style="font-size:9px;color:#555;width:16px;">HP</span>
+        <div class="bar-track" style="flex:1;">
+          <div class="bar-fill ${dead?'dead-fill':(hpPct<30?'hp-fill low':'hp-fill')}"
+               style="width:${dead?0:hpPct}%;"></div></div>
+        <span style="font-size:9px;color:#555;width:16px;margin-left:3px;">MP</span>
+        <div class="bar-track" style="flex:1;">
+          <div class="bar-fill ${dead?'dead-fill':'mp-fill'}"
+               style="width:${dead?0:mpPct}%;"></div></div>
+      </div>`;
+    el.appendChild(wrap);
+  });
+  if(el.lastElementChild) el.lastElementChild.style.borderBottom='none';
+}
+
+// ── レベルアップ ──────────────────────────
+function checkLevelUp(chr){
+  const results=[];
+  const j=JOBS[chr.jobId];
+  while(chr.lv<EXP_TABLE.length-1 && chr.exp>=EXP_TABLE[chr.lv+1]){
+    chr.lv++;
+    chr.maxHp+=rand(j.hpGain[0],j.hpGain[1]);
+    chr.maxMp+=rand(j.mpGain[0],j.mpGain[1]);
+    chr.atk  +=rand(j.atkGain[0],j.atkGain[1]);
+    chr.hp=chr.maxHp; chr.mp=chr.maxMp;
+    const learned=j.learnAt[chr.lv];
+    if(learned&&!chr.spells.includes(learned)) chr.spells.push(learned);
+    results.push({lv:chr.lv, newSpell:learned||null});
+  }
+  return results;
+}
+</script>
+
+<!-- ══════════════════════════════════════
+     SHOP LOGIC
+══════════════════════════════════════ -->
+<script>
+function openShop(){
+  if(busy||state.scene!=='explore') return;
+  playSfx('decide');
+  renderShop();
+  showScreen('shop');
+}
+
+function renderShop(){
+  document.getElementById('shop-gold-display').textContent   = state.gold;
+  document.getElementById('shop-persist-display').textContent= persistentGold;
+
+  renderShopCategory('shop-weapon-list',      SHOP_ITEMS.weapons,     'weapon');
+  renderShopCategory('shop-mage-weapon-list', SHOP_ITEMS.mageWeapons, 'mageWeapon');
+  renderShopCategory('shop-armor-list',       SHOP_ITEMS.armors,      'armor');
+}
+
+function renderShopCategory(elId, items, category){
+  const el=document.getElementById(elId);
+  el.innerHTML='';
+  items.forEach(item=>{
+    const owned    = !!inventory[item.id];
+    const equipped =
+      category==='weapon'     ? equippedWeapon     === item.id :
+      category==='mageWeapon' ? equippedMageWeapon === item.id :
+                                equippedArmor       === item.id;
+
+    const row=document.createElement('div');
+    row.className='shop-item'+(equipped?' equipped':owned?' owned':'');
+
+    // ボーナステキスト
+    let bonusText='';
+    if(category==='weapon')     bonusText=`全員ATK +${item.atkBonus}`;
+    else if(category==='mageWeapon') bonusText=`魔法ダメージ +${Math.round(item.mpwBonus*100)}%`;
+    else                        bonusText=`全員HP +${item.hpBonus}`;
+
+    const statusText = equipped ? '【装備中】' : owned ? '【購入済み】' : `${item.price}G`;
+    const statusColor= equipped ? '#ffe066'   : owned ? '#4ade80'    : '#ffe066';
+
+    row.innerHTML=`
+      <span style="font-size:18px;">${item.icon}</span>
+      <div class="shop-item-name">
+        ${item.name}<br>
+        <span class="shop-item-desc">${item.desc}　<span style="color:#c4b5fd;">${bonusText}</span></span>
+      </div>
+      <div>
+        <div class="shop-item-price" style="color:${statusColor};">${statusText}</div>
+        ${owned&&!equipped
+          ? `<button class="btn-retro" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%;"
+               data-id="${item.id}" data-cat="${category}">そうびする</button>`
+          : ''}
+        ${!owned
+          ? `<button class="btn-retro" style="font-size:10px;padding:2px 6px;margin-top:3px;width:100%;"
+               data-id="${item.id}" data-cat="${category}" ${state.gold<item.price?'disabled':''}>
+               かう</button>`
+          : ''}
+      </div>`;
+    el.appendChild(row);
+  });
+
+  el.querySelectorAll('button[data-id]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.dataset.id;
+      const cat=btn.dataset.cat;
+      const action=btn.textContent.trim();
+      if(action==='かう')           buyItem(id,cat);
+      else if(action==='そうびする') equipItem(id,cat);
+    });
+  });
+}
+
+function buyItem(id, category){
+  // 全カテゴリから検索
+  const allItems=[
+    ...SHOP_ITEMS.weapons,
+    ...SHOP_ITEMS.mageWeapons,
+    ...SHOP_ITEMS.armors,
+  ];
+  const item=allItems.find(x=>x.id===id);
+  if(!item||state.gold<item.price) return;
+  playSfx('buy');
+  state.gold    -=item.price;
+  persistentGold =state.gold;
+  inventory[id]  =true;
+  equipItem(id, category);
+}
+
+function equipItem(id, category){
+  playSfx('decide');
+  if(category==='weapon')          equippedWeapon     =id;
+  else if(category==='mageWeapon') equippedMageWeapon =id;
+  else                             equippedArmor       =id;
+  _applyEquipBonus();
+  renderShop();
+}
+
+// 装備変更後にプレイヤーのatk/maxHpを再計算
+function _applyEquipBonus(){
+  const j=JOBS[state.player.jobId];
+  const {atkBonus,hpBonus}=getEquipBonus();
+  // lvGain = 現在のatk - (基礎atk)  ← レベルアップで上がった分
+  // ただし最初の装備切替に備えて、初期値はjob.atkを基準にする
+  const newBaseAtk = j.atk + atkBonus;
+  const newBaseHp  = j.hp  + hpBonus;
+  // 現在のlvGainを保持
+  const atkLvGain  = Math.max(0, state.player.atk - state.player._baseAtk);
+  const hpLvGain   = Math.max(0, state.player.maxHp- state.player._baseHp);
+  state.player._baseAtk = newBaseAtk;
+  state.player._baseHp  = newBaseHp;
+  state.player.atk    = newBaseAtk + atkLvGain;
+  state.player.maxHp  = newBaseHp  + hpLvGain;
+  state.player.hp     = Math.min(state.player.hp, state.player.maxHp);
+  renderPartyPanel('explore-party-panel');
+}
+
+function closeShop(){
+  playSfx('decide');
+  persistentGold=state.gold; // ショップを出るとき引き継ぎに同期
+  updateExploreUI();
+  showScreen('explore');
+}
+</script>
+
+<!-- ══════════════════════════════════════
+     EXPLORE / CAMP / BATTLE LOGIC
+══════════════════════════════════════ -->
+<script>
+// ── Explore UI ────────────────────────
+function updateExploreUI(){
+  const st=STAGES[state.currentStage];
+  const badge=document.getElementById('stage-badge');
+  badge.textContent=st.label;
+  badge.className='stage-badge'+(st.boss?.isBoss?' lastboss':'');
+  document.getElementById('stage-name').textContent=st.name;
+  document.getElementById('explore-bar').style.width=state.explore+'%';
+  document.getElementById('explore-bar').style.background=st.barColor;
+  document.getElementById('explore-pct').textContent=state.explore;
+  document.getElementById('explore-gold').textContent=state.gold;
+  const hint=document.getElementById('boss-hint');
+  hint.textContent=(state.explore>=80&&st.boss)?'⚠ まおう　ちかし！！':'';
+  renderPartyPanel('explore-party-panel');
+}
+
+// ── Job Select ────────────────────────
+let selectedJobId=null;
+function buildJobSelect(){
+  const el=document.getElementById('job-list');
+  el.innerHTML='';
+  const {atkBonus,hpBonus}=getEquipBonus();
+  Object.values(JOBS).forEach(job=>{
+    const card=document.createElement('div');
+    card.className='job-card';
+    const dispHp =job.hp+(job.id==='hero'?hpBonus:0);
+    const dispAtk=job.atk+(job.id==='hero'?atkBonus:0);
+
+    // まほうつかいだけレベル習得一覧を表示
+    let statsHtml='';
+    if(job.id==='mage'){
+      const learnList=Object.entries(job.learnAt)
+        .map(([lv,sp])=>`LV${lv}:${sp}`).join(' / ');
+      statsHtml=
+        `<div class="job-stats">HP:${dispHp}　MP:${job.mp}　ATK:${dispAtk}</div>`+
+        `<div style="font-size:10px;color:#f9a8d4;margin-top:3px;line-height:1.6;">📖 ${learnList}</div>`;
+    } else {
+      statsHtml=
+        `<div class="job-stats">HP:${dispHp}　MP:${job.mp}　こうげき:${dispAtk}　じゅもん:${job.spells.join('・')||'なし'}</div>`;
+    }
+
+    card.innerHTML=`
+      <div class="job-name">${job.icon}　${job.name}</div>
+      <div class="job-desc">${job.desc.replace(/\n/g,'<br>')}</div>
+      ${statsHtml}`;
+    card.addEventListener('click',()=>{
+      document.querySelectorAll('.job-card').forEach(c=>c.classList.remove('active'));
+      card.classList.add('active');
+      selectedJobId=job.id;
+      document.getElementById('btn-job-decide').disabled=false;
+      playSfx('decide');
+    });
+    el.appendChild(card);
+  });
+}
+
+// ── Advance ───────────────────────────
+async function onAdvance(){
+  if(busy||state.scene!=='explore') return;
+  busy=true; playSfx('decide');
+  state.explore=Math.min(100,state.explore+rand(6,14));
+  updateExploreUI();
+  const st=STAGES[state.currentStage];
+  if(state.explore>=100){
+    if(st.boss){
+      appendLog('explore-log',st.bossMsg,st.boss.isBoss?'#f87171':'#f97316');
+      playSfx('boss_entry');
+      await sleep(1100);
+      busy=false; startBattle(st.boss);
+    } else { await stageClear(); }
+    return;
+  }
+  const roll=Math.random();
+  if(roll<0.40){
+    const m=st.enemies[rand(0,st.enemies.length-1)];
+    appendLog('explore-log',`${m.name}が あらわれた！`,'#f87171');
+    await sleep(450); busy=false; startBattle(m);
+  } else if(roll<0.60){
+    const g=rand(10,40);
+    state.gold+=g; persistentGold=state.gold;
+    appendLog('explore-log',`${g}G を みつけた！`,'#ffe066');
+    updateExploreUI(); busy=false;
+  } else if(roll<0.72){
+    state.herb++;
+    appendLog('explore-log','やくそうを みつけた！','#4ade80');
+    updateExploreUI(); busy=false;
+  } else {
+    appendLog('explore-log','あたりは しずかだ。');
+    busy=false;
+  }
+}
+
+// ── Stage Clear ───────────────────────
+async function stageClear(){
+  playSfx('stageclear');
+  appendLog('explore-log','★ クリア！','#ffe066');
+  await sleep(1200);
+  showEnding();
+  busy=false;
+}
+
+// ── Camp ──────────────────────────────
+function onOpenCamp(){
+  if(busy||state.scene!=='explore') return;
+  playSfx('decide');
+  document.getElementById('camp-gold').textContent=state.gold;
+  document.getElementById('camp-log').innerHTML='こちらが やどやです。<br>いっぱい やすんで いってね。';
+  showScreen('camp');
+}
+function onRest(){
+  if(busy) return; playSfx('decide');
+  if(state.gold<15){
+    document.getElementById('camp-log').innerHTML='ゴールドが たりない！<br>（15G ひつよう）';
+    return;
+  }
+  state.gold-=15; persistentGold=state.gold;
+  [state.player,...state.allies].forEach(m=>{m.alive=true;m.hp=m.maxHp;m.mp=m.maxMp;});
+  playSfx('heal');
+  document.getElementById('camp-gold').textContent=state.gold;
+  document.getElementById('camp-log').innerHTML='よく ねむれた！<br>パーティ ぜんいんが かいふく した！';
+}
+function onCampBack(){
+  if(busy) return; playSfx('decide');
+  persistentGold=state.gold;
+  updateExploreUI(); showScreen('explore');
+}
+
+// ── Battle Core ───────────────────────
+function startBattle(monDef){
+  const scale=Math.pow(2,clearCount);
+  const e={...monDef,
+    maxHp:Math.round(monDef.hp*scale),
+    hp:Math.round(monDef.hp*scale),
+    atk:Math.round(monDef.atk*scale),
+    atkDebuff:false,
+    guardActive:false,   // スクルト（次の攻撃ATK -50%）
+    mahoActive:false,    // マホカンタ（次の攻撃を完全ガード）
+  };
+  state.enemy=e;
+  const nameEl=document.getElementById('monster-name');
+  nameEl.textContent=e.name;
+  nameEl.className=e.isBoss?'boss-name':'';
+  document.getElementById('monster-art').textContent=e.art;
+  document.getElementById('monster-art').style.color=e.color||'#fff';
+  const st=STAGES[state.currentStage];
+  document.getElementById('battle-stage-label').textContent=`[${st.label} ${st.name}]`;
+  clearLog('battle-log');
+  appendLog('battle-log',`${e.name}が あらわれた！`);
+  if(e.isBoss) appendLog('battle-log',st.bossMsg,'#f87171');
+  renderPartyPanel('battle-party-panel');
+  updateEnemyBar(); showCmdMain(); setBattleDisabled(false);
+  showScreen('battle'); busy=false;
+}
+
+function updateEnemyBar(){
+  if(!state.enemy) return;
+  const pct=state.enemy.maxHp>0?(state.enemy.hp/state.enemy.maxHp*100):0;
+  document.getElementById('enemy-hp-bar').style.width=pct+'%';
+  const tag=state.enemy.atkDebuff?' ⬇ATK':'';
+  document.getElementById('enemy-hp-text').textContent=`${state.enemy.hp}/${state.enemy.maxHp}${tag}`;
+}
+function showCmdMain(){
+  document.getElementById('cmd-main').style.display='';
+  document.getElementById('cmd-spell').style.display='none';
+  document.getElementById('cmd-item').style.display='none';
+  document.getElementById('cmd-target').style.display='none';
+}
+function setBattleDisabled(flag){
+  ['btn-fight','btn-spell','btn-item','btn-run',
+   'btn-spell-back','btn-item-back','btn-target-back']
+    .forEach(id=>{const el=document.getElementById(id);if(el)el.disabled=flag;});
+  document.querySelectorAll('.spell-cast-btn,.item-use-btn,.target-btn')
+    .forEach(b=>b.disabled=flag);
+}
+
+// ── Ally AI ───────────────────────────
+async function doAllyTurns(){
+  for(const ally of state.allies){
+    if(!ally.alive) continue;
+    if(!state.enemy||state.enemy.hp<=0) return false;
+    await sleep(520);
+    if(ally.spells.includes('弱体ビーム')
+       &&ally.mp>=SPELL_DEF['弱体ビーム'].mp
+       &&state.enemy&&!state.enemy.atkDebuff){
+      ally.mp-=SPELL_DEF['弱体ビーム'].mp;
+      state.enemy.atkDebuff=true;
+      playSfx('debuff');
+      appendLog('battle-log',`${ally.name}の 弱体ビーム！ ${state.enemy.name}の こうげきりょくが さがった！`,'#a78bfa');
+      updateEnemyBar(); continue;
+    }
+    const healSp=['ベホマ','ベホイミ','ホイミ'].filter(s=>ally.spells.includes(s)&&ally.mp>=SPELL_DEF[s].mp);
+    const wounded=[state.player,...state.allies].filter(m=>m.alive&&m.hp/m.maxHp<0.40);
+    if(healSp.length>0&&wounded.length>0){
+      const tgt=wounded.reduce((a,b)=>(a.hp/a.maxHp)<(b.hp/b.maxHp)?a:b);
+      const sp=SPELL_DEF[healSp[0]];
+      ally.mp-=sp.mp;
+      const amt=sp.heal[0]>=999?tgt.maxHp-tgt.hp:rand(sp.heal[0],sp.heal[1]);
+      tgt.hp=clamp(tgt.hp+amt,0,tgt.maxHp);
+      playSfx('ally_heal');
+      appendLog('battle-log',`${ally.name}の ${healSp[0]}！ ${tgt.name}のHPが ${amt} かいふく！`,'#4ade80');
+      renderPartyPanel('battle-party-panel'); continue;
+    }
+    const atkSp=['メガンテもどき','イオナズン','マヒャド','ギラーゴ','メラゾーマ','ギラ','メラミ','メラ'].filter(s=>ally.spells.includes(s)&&ally.mp>=SPELL_DEF[s].mp);
+    if(atkSp.length>0&&Math.random()<0.55){
+      const spName=atkSp[0];const sp=SPELL_DEF[spName];
+      ally.mp-=sp.mp;
+      const dmg=rand(sp.dmg[0],sp.dmg[1]);
+      state.enemy.hp=clamp(state.enemy.hp-dmg,0,state.enemy.maxHp);
+      playSfx('fire');
+      appendLog('battle-log',`${ally.name}の ${spName}！ ${state.enemy.name}に ${dmg}のダメージ！`,'#fbbf24');
+      updateEnemyBar(); if(state.enemy.hp<=0) return true; continue;
+    }
+    const dmg=Math.max(1,ally.atk+rand(-2,2));
+    state.enemy.hp=clamp(state.enemy.hp-dmg,0,state.enemy.maxHp);
+    playSfx('ally_atk');
+    appendLog('battle-log',`${ally.name}の こうげき！ ${state.enemy.name}に ${dmg}のダメージ！`);
+    updateEnemyBar(); if(state.enemy.hp<=0) return true;
+  }
+  return false;
+}
+
+// ── Enemy Turn ────────────────────────
+async function doEnemyTurn(){
+  await sleep(700);
+  if(!state.enemy||state.enemy.hp<=0) return false;
+  const alive=[state.player,...state.allies].filter(m=>m.alive);
+  if(alive.length===0){
+    await _gameOver(); return true;
+  }
+  const tgt=alive[rand(0,alive.length-1)];
+  const baseAtk=state.enemy.atkDebuff?Math.floor(state.enemy.atk*0.70):state.enemy.atk;
+
+  // マホカンタ：完全ガード（1回消費）
+  if(state.enemy.mahoActive){
+    state.enemy.mahoActive=false;
+    playSfx('heal');
+    appendLog('battle-log',`${state.enemy.name}の こうげきは まほうの まくに はじかれた！`,'#60a5fa');
+    await sleep(400);
+    renderPartyPanel('battle-party-panel');
+    if(!state.player.alive){ await _gameOver(); return true; }
+    return false;
+  }
+
+  // スクルト：このターンのATK -50%（1回消費）
+  let finalAtk=baseAtk;
+  if(state.enemy.guardActive){
+    state.enemy.guardActive=false;
+    finalAtk=Math.floor(baseAtk*0.50);
+  }
+
+  const dmg=Math.max(1,finalAtk+rand(-3,3));
+  tgt.hp=clamp(tgt.hp-dmg,0,tgt.maxHp);
+  playSfx('damage');
+  appendLog('battle-log',`${state.enemy.name}の こうげき！`,'#f87171');
+  await sleep(200);
+  appendLog('battle-log',`${tgt.name}は ${dmg}のダメージを うけた！`);
+  if(tgt.hp<=0){
+    tgt.hp=0;tgt.alive=false;
+    await sleep(280);
+    appendLog('battle-log',`${tgt.name}は たおれた…`,'#f87171');
+    playSfx('dead');
+  }
+  renderPartyPanel('battle-party-panel');
+  if(!state.player.alive){ await _gameOver(); return true; }
+  return false;
+}
+
+async function _gameOver(){
+  await sleep(900);
+  appendLog('battle-log','ゆうしゃは たおれた…','#f87171');
+  persistentGold=state.gold; // ゲームオーバーでもゴールド引き継ぎ
+  const st=STAGES[state.currentStage];
+  document.getElementById('gameover-stage').textContent=`— ${st.label}「${st.name}」—`;
+  document.getElementById('gameover-gold').textContent=`💰 ゴールド ${persistentGold}G は　つぎに　ひきつがれる！`;
+  await sleep(1400); showScreen('gameover'); busy=false;
+}
+
+// ── After Player Action ───────────────
+async function afterPlayerAction(){
+  if(!state.enemy){showCmdMain();setBattleDisabled(false);busy=false;return;}
+  renderPartyPanel('battle-party-panel');
+  if(state.enemy.hp<=0){await _handleEnemyDefeated();return;}
+  const allyKilled=await doAllyTurns();
+  renderPartyPanel('battle-party-panel'); updateEnemyBar();
+  if(allyKilled&&state.enemy&&state.enemy.hp<=0){await _handleEnemyDefeated();return;}
+  if(!state.enemy){showCmdMain();setBattleDisabled(false);busy=false;return;}
+  const gameOver=await doEnemyTurn();
+  if(!gameOver){showCmdMain();setBattleDisabled(false);busy=false;}
+}
+
+async function _handleEnemyDefeated(){
+  if(!state.enemy){busy=false;return;}
+  await sleep(400);
+  appendLog('battle-log',`${state.enemy.name}を たおした！`,'#ffe066');
+  playSfx('dead'); await sleep(500);
+  const expGain=state.enemy.exp, goldGain=state.enemy.gold;
+  const alive=[state.player,...state.allies].filter(m=>m.alive);
+  alive.forEach(m=>m.exp+=expGain);
+  state.gold+=goldGain; persistentGold=state.gold;
+  appendLog('battle-log',`${expGain}の けいけんちを えた！`);
+  appendLog('battle-log',`${goldGain}G を てにいれた！`,'#ffe066');
+  for(const m of alive){
+    const ups=checkLevelUp(m);
+    for(const u of ups){
+      playSfx('levelup'); await sleep(280);
+      appendLog('battle-log',`★ ${m.name} LV${u.lv} に なった！`,'#ffe066');
+      if(u.newSpell){await sleep(280);appendLog('battle-log',`${m.name}は「${u.newSpell}」を おぼえた！`,'#60a5fa');}
+    }
+  }
+  if(state.enemy.isBoss||state.enemy.isMidBoss){
+    state.enemy=null; await sleep(800);
+    await stageClear(); return;
+  }
+  state.enemy=null; await sleep(900);
+  state.allies.forEach(a=>{if(!a.alive){a.alive=true;a.hp=1;}});
+  updateExploreUI(); showScreen('explore'); busy=false;
+}
+
+// ── Ending ────────────────────────────
+function showEnding(){
+  const members=[state.player,...state.allies];
+  const nextScale=Math.pow(2,clearCount+1);
+  document.getElementById('end-msg').innerHTML=
+    `ゆうしゃたちは まおう りゅうおうを たおした！<br>`+
+    `へいわが　よみがえった……<br><br>`+
+    members.map(m=>`${JOBS[m.jobId].icon} ${m.name}（${JOBS[m.jobId].name}）　LV:${m.lv}`).join('<br>')+
+    `<br><br>◆ ゴールド：${state.gold}G`+
+    (clearCount>0?`<br>◆ クリア周回：${clearCount+1}周目`:'')+
+    `<br><br><span style="color:#ffe066;">💰 ゴールドは　つぎの　ぼうけんに　ひきつがれる！</span>`+
+    `<br><span style="color:#f97316;font-size:11px;">⚠ もういちど あそぶ と てきのHPが ${nextScale}倍 に なる！</span>`;
+  playSfx('levelup'); showScreen('ending');
+}
+</script>
+
+<!-- ══════════════════════════════════════
+     PLAYER ACTIONS & EVENT LISTENERS
+══════════════════════════════════════ -->
+<script>
+async function onFight(){
+  if(busy||state.scene!=='battle') return;
+  busy=true;setBattleDisabled(true);showCmdMain();playSfx('attack');
+  const dmg=Math.max(1,state.player.atk+rand(-2,3));
+  state.enemy.hp=clamp(state.enemy.hp-dmg,0,state.enemy.maxHp);
+  appendLog('battle-log',`${state.player.name}の こうげき！`);
+  await sleep(280);
+  appendLog('battle-log',`${state.enemy.name}に ${dmg}のダメージ！`);
+  updateEnemyBar(); await afterPlayerAction();
+}
+
+// ── ターゲット選択 ────────────────────────
+// heal / revive 呪文を選んだとき呼ばれる
+function openTargetSelect(spellName){
+  const sp = SPELL_DEF[spellName];
+  const el = document.getElementById('target-list');
+  el.innerHTML = '';
+
+  // 対象候補を決定
+  // revive → 戦闘不能メンバーのみ / heal → 生存メンバーのみ
+  const members = [state.player, ...state.allies];
+  const candidates = sp.type === 'revive'
+    ? members.filter(m => !m.alive)
+    : members.filter(m => m.alive);
+
+  if(candidates.length === 0){
+    // 対象がいない場合はそのまま呪文を使って終わる
+    _castHealNoTarget(spellName);
+    return;
+  }
+
+  // ターゲットボタンを生成
+  candidates.forEach(m => {
+    const hpPct = m.maxHp > 0 ? (m.hp / m.maxHp * 100) : 0;
+    const btn = document.createElement('button');
+    btn.className = 'btn-retro target-btn';
+    btn.style.cssText = 'width:100%;text-align:left;font-size:12px;';
+
+    const job = JOBS[m.jobId];
+    const hpColor = !m.alive ? '#666' : hpPct < 30 ? '#f87171' : '#4ade80';
+    btn.innerHTML =
+      `${job.icon}　${m.name}` +
+      `<span style="float:right;color:${hpColor};">` +
+      `HP ${m.alive ? m.hp : '---'}/${m.maxHp}` +
+      (hpPct < 30 && m.alive ? '　⚠' : '') +
+      `</span>`;
+
+    btn.addEventListener('click', () => {
+      playSfx('decide');
+      executeCastOnTarget(spellName, m);
+    });
+    el.appendChild(btn);
+  });
+
+  // パネル切替（呪文リストを隠してターゲット選択を表示）
+  document.getElementById('cmd-main').style.display  = 'none';
+  document.getElementById('cmd-spell').style.display = 'none';
+  document.getElementById('cmd-item').style.display  = 'none';
+  document.getElementById('cmd-target').style.display = '';
+}
+
+// ターゲットを選んだあとの実際の回復処理
+async function executeCastOnTarget(spellName, target){
+  if(busy) return;
+  const sp = SPELL_DEF[spellName];
+  if(!sp || state.player.mp < sp.mp) return;
+
+  busy = true;
+  setBattleDisabled(true);
+  showCmdMain();
+
+  state.player.mp -= sp.mp;
+  appendLog('battle-log', `${state.player.name}は ${spellName}を となえた！`);
+  playSfx('heal');
+  await sleep(380);
+
+  if(sp.type === 'heal'){
+    const heal = sp.heal[0] >= 999
+      ? target.maxHp - target.hp
+      : rand(sp.heal[0], sp.heal[1]);
+    target.hp = clamp(target.hp + heal, 0, target.maxHp);
+    appendLog('battle-log', `${target.name}のHPが ${heal} かいふく した！`, '#4ade80');
+
+  } else if(sp.type === 'revive'){
+    target.alive = true;
+    target.hp    = Math.floor(target.maxHp / 2);
+    appendLog('battle-log', `${target.name}が よみがえった！ HP ${target.hp}`, '#4ade80');
+  }
+
+  renderPartyPanel('battle-party-panel');
+  await afterPlayerAction();
+}
+
+// 対象候補ゼロのとき（reviveで全員生存など）はそのまま実行
+async function _castHealNoTarget(spellName){
+  const sp = SPELL_DEF[spellName];
+  if(!sp || state.player.mp < sp.mp) return;
+  busy = true;
+  setBattleDisabled(true);
+  showCmdMain();
+  state.player.mp -= sp.mp;
+  appendLog('battle-log', `${state.player.name}は ${spellName}を となえた！`);
+  playSfx('heal'); await sleep(380);
+  appendLog('battle-log', 'しかし　こうかが　なかった！', '#888');
+  renderPartyPanel('battle-party-panel');
+  await afterPlayerAction();
+}
+
+async function onCastSpell(spellName){
+  if(busy||state.scene!=='battle') return;
+  const sp=SPELL_DEF[spellName];
+  if(!sp||state.player.mp<sp.mp) return;
+
+  // heal / revive はターゲット選択が必要
+  if(sp.type==='heal' || sp.type==='revive'){
+    openTargetSelect(spellName);
+    return;
+  }
+
+  busy=true;setBattleDisabled(true);showCmdMain();
+  state.player.mp-=sp.mp;
+  appendLog('battle-log',`${state.player.name}は ${spellName}を となえた！`);
+
+  if(sp.type==='fire'){
+    // ── 攻撃魔法 ──
+    playSfx('fire');await sleep(380);
+    const dmg=rand(sp.dmg[0],sp.dmg[1]);
+    state.enemy.hp=clamp(state.enemy.hp-dmg,0,state.enemy.maxHp);
+    appendLog('battle-log',`${state.enemy.name}に ${dmg}のダメージ！`,'#fbbf24');
+    updateEnemyBar();
+
+  } else if(sp.type==='debuff'){
+    // ── 弱体ビーム ──
+    playSfx('debuff');await sleep(480);
+    if(state.enemy.atkDebuff){
+      appendLog('battle-log',`しかし ${state.enemy.name}は すでに よわっている！`,'#888');
+    } else {
+      state.enemy.atkDebuff=true;
+      appendLog('battle-log',`${state.enemy.name}の こうげきりょくが さがった！`,'#a78bfa');
+    }
+    updateEnemyBar();
+
+  } else if(sp.type==='healall'){
+    // ── ベホマズン：パーティ全員全回復 ──
+    playSfx('heal');await sleep(500);
+    const members=[state.player,...state.allies];
+    members.forEach(m=>{ if(!m.alive) return; m.hp=m.maxHp; });
+    appendLog('battle-log',`パーティ ぜんいんの HPが ぜんかいふく した！`,'#4ade80');
+
+  } else if(sp.type==='guard'){
+    // ── スクルト：次の敵攻撃のATKを -50% ──
+    playSfx('heal');await sleep(380);
+    if(state.enemy.guardActive){
+      appendLog('battle-log',`すでに まもりが あがっている！`,'#888');
+    } else {
+      state.enemy.guardActive=true;
+      appendLog('battle-log',`パーティに まもりの まくが はられた！`,'#a78bfa');
+      appendLog('battle-log',`つぎの てきこうげきの ダメージが へる！`,'#a78bfa');
+    }
+
+  } else if(sp.type==='guard2'){
+    // ── マホカンタ：次の敵攻撃を完全ガード（1回） ──
+    playSfx('heal');await sleep(380);
+    if(state.enemy.mahoActive){
+      appendLog('battle-log',`すでに マホカンタが はってある！`,'#888');
+    } else {
+      state.enemy.mahoActive=true;
+      appendLog('battle-log',`まほうの まくが はられた！`,'#60a5fa');
+      appendLog('battle-log',`つぎの てきこうげきを かんぜんに ふせぐ！`,'#60a5fa');
+    }
+  }
+
+  renderPartyPanel('battle-party-panel'); await afterPlayerAction();
+}
+
+async function onUseHerb(){
+  if(busy||state.scene!=='battle'||state.herb<=0) return;
+  busy=true;setBattleDisabled(true);showCmdMain();
+  state.herb--;
+  const heal=rand(45,80);
+  state.player.hp=clamp(state.player.hp+heal,0,state.player.maxHp);
+  playSfx('heal');
+  appendLog('battle-log',`${state.player.name}は やくそうを つかった！`);
+  await sleep(280);
+  appendLog('battle-log',`HPが ${heal} かいふく した！`,'#4ade80');
+  renderPartyPanel('battle-party-panel'); await afterPlayerAction();
+}
+
+async function onRun(){
+  if(busy||state.scene!=='battle') return;
+  if(state.enemy&&(state.enemy.isBoss||state.enemy.isMidBoss)){
+    appendLog('battle-log','この てきからは にげられない！','#f87171');
+    return;
+  }
+  busy=true;setBattleDisabled(true);showCmdMain();
+  appendLog('battle-log',`${state.player.name}は にげようとした！`);
+  await sleep(500);
+  if(Math.random()<0.5){
+    playSfx('escape');
+    appendLog('battle-log','うまく にげきった！');
+    await sleep(700);
+    state.allies.forEach(a=>{if(!a.alive){a.alive=true;a.hp=1;}});
+    state.enemy=null;
+    updateExploreUI(); showScreen('explore'); busy=false;
+  } else {
+    appendLog('battle-log','しかし まわりこまれた！');
+    const dead=await doEnemyTurn();
+    if(!dead){showCmdMain();setBattleDisabled(false);busy=false;}
+  }
+}
+
+function buildSpellList(){
+  const el=document.getElementById('spell-list');
+  el.innerHTML='';
+  const p=state.player;
+  p.spells.forEach(name=>{
+    const sp=SPELL_DEF[name];if(!sp) return;
+    const btn=document.createElement('button');
+    btn.className='btn-retro spell-cast-btn';
+    btn.style.cssText='width:100%;text-align:left;';
+    const alreadyDebuffed=sp.type==='debuff'&&state.enemy&&state.enemy.atkDebuff;
+    let label=`${name}　MP:${sp.mp}`;
+    if(sp.type==='debuff') label+='　（敵ATK-30%）';
+    if(alreadyDebuffed)    label+='　※効果中';
+    btn.textContent=label;
+    btn.disabled=p.mp<sp.mp||alreadyDebuffed;
+    btn.addEventListener('click',()=>onCastSpell(name));
+    el.appendChild(btn);
+  });
+  if(el.children.length===0)
+    el.innerHTML='<p style="font-size:11px;color:#888;">つかえる じゅもんが ない。</p>';
+  document.getElementById('spell-mp').textContent=p.mp;
+}
+
+function buildItemList(){
+  const el=document.getElementById('item-list');
+  el.innerHTML='';
+  if(state.herb<=0){
+    el.innerHTML='<p style="font-size:11px;color:#888;">どうぐが ない。</p>';
+    return;
+  }
+  const btn=document.createElement('button');
+  btn.className='btn-retro item-use-btn';
+  btn.style.cssText='width:100%;text-align:left;';
+  btn.textContent=`やくそう ×${state.herb}`;
+  btn.addEventListener('click',onUseHerb);
+  el.appendChild(btn);
+}
+
+// ════════════════════════════════════════
+//  EVENT LISTENERS
+// ════════════════════════════════════════
+document.getElementById('btn-start').addEventListener('click',()=>{
+  playSfx('decide');
+  selectedJobId=null;
+  buildJobSelect();
+  document.getElementById('btn-job-decide').disabled=true;
+  // 周回・ゴールド情報をタイトルに表示
+  const cycleEl=document.getElementById('title-cycle-info');
+  const goldEl =document.getElementById('title-gold-info');
+  if(clearCount>0){
+    const scale=Math.pow(2,clearCount);
+    cycleEl.textContent=`【 ${clearCount+1}周目 】 てきのHP × ${scale} ／ スタートLV ${clearCount+1}`;
+    cycleEl.style.display='';
+  } else { cycleEl.style.display='none'; }
+  if(persistentGold>0){
+    goldEl.textContent=`💰 ひきつぎゴールド：${persistentGold}G`;
+    goldEl.style.display='';
+  } else { goldEl.style.display='none'; }
+  showScreen('job');
+});
+
+document.getElementById('btn-job-decide').addEventListener('click',()=>{
+  if(!selectedJobId) return;
+  playSfx('decide');
+  initState(selectedJobId);
+  // _baseAtk/_baseHp を初期化（装備ボーナス追跡用）
+  const {atkBonus,hpBonus}=getEquipBonus();
+  state.player._baseAtk=JOBS[selectedJobId].atk+atkBonus;
+  state.player._baseHp =JOBS[selectedJobId].hp +hpBonus;
+  clearLog('explore-log');
+  appendLog('explore-log',`${JOBS[selectedJobId].icon} ${JOBS[selectedJobId].name}の ゆうしゃよ！`);
+  appendLog('explore-log',
+    `なかまの ${state.allies[0].name}（${JOBS[state.allies[0].jobId].name}）と `+
+    `${state.allies[1].name}（${JOBS[state.allies[1].jobId].name}）が なかまに なった！`,'#ffe066');
+  appendLog('explore-log','まおうの　間へ　むかえ！　りゅうおうを　たおすのだ！');
+  if(persistentGold>0)
+    appendLog('explore-log',`💰 ひきつぎゴールド ${persistentGold}G で　ぼうけんを　はじめる！`,'#ffe066');
+  updateExploreUI(); showScreen('explore');
+});
+
+document.getElementById('btn-advance').addEventListener('click',onAdvance);
+document.getElementById('btn-camp').addEventListener('click',onOpenCamp);
+document.getElementById('btn-rest').addEventListener('click',onRest);
+document.getElementById('btn-camp-back').addEventListener('click',onCampBack);
+document.getElementById('btn-shop').addEventListener('click',openShop);
+document.getElementById('btn-shop-back').addEventListener('click',closeShop);
+document.getElementById('btn-fight').addEventListener('click',onFight);
+document.getElementById('btn-run').addEventListener('click',onRun);
+
+document.getElementById('btn-spell').addEventListener('click',()=>{
+  if(busy||state.scene!=='battle') return;
+  if(state.player.spells.length===0){
+    appendLog('battle-log',`${state.player.name}は じゅもんを しらない！`,'#888');
+    return;
+  }
+  playSfx('decide');
+  document.getElementById('cmd-main').style.display='none';
+  document.getElementById('cmd-item').style.display='none';
+  document.getElementById('cmd-spell').style.display='';
+  buildSpellList();
+});
+document.getElementById('btn-spell-back').addEventListener('click',()=>{
+  if(busy) return; playSfx('decide'); showCmdMain();
+});
+document.getElementById('btn-target-back').addEventListener('click',()=>{
+  if(busy) return; playSfx('decide');
+  // ターゲット選択から呪文リストに戻る
+  document.getElementById('cmd-main').style.display  = 'none';
+  document.getElementById('cmd-item').style.display  = 'none';
+  document.getElementById('cmd-target').style.display= 'none';
+  document.getElementById('cmd-spell').style.display = '';
+  buildSpellList();
+});
+document.getElementById('btn-item').addEventListener('click',()=>{
+  if(busy||state.scene!=='battle') return;
+  playSfx('decide');
+  document.getElementById('cmd-main').style.display='none';
+  document.getElementById('cmd-spell').style.display='none';
+  document.getElementById('cmd-item').style.display='';
+  buildItemList();
+});
+document.getElementById('btn-item-back').addEventListener('click',()=>{
+  if(busy) return; playSfx('decide'); showCmdMain();
+});
+
+document.getElementById('btn-retry').addEventListener('click',()=>{
+  playSfx('decide'); showScreen('title');
+});
+document.getElementById('btn-end-retry').addEventListener('click',()=>{
+  clearCount++;
+  persistentGold=state.gold; // クリア時のゴールドを引き継ぎ
+  playSfx('decide'); showScreen('title');
+});
+</script>
+</body>
+</html>
