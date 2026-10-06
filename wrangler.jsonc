@@ -1,6 +1,6 @@
 {
   // Cloudflare Workers 設定ファイル
-  "name": "rpg",
+  "name": "rpg-a",
   "compatibility_date": "2025-09-25",
 
   // Static Assets: index.html を含むフォルダを配信する
